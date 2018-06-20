@@ -67,9 +67,12 @@ import tensorflow as tf
 import reader
 import util
 
-from tensorflow.python.client import device_lib
+#RM: Uncomment if using a GPU
+#from tensorflow.python.client import device_lib
 
+#See https://www.tensorflow.org/api_docs/python/tf/app#modules
 flags = tf.flags
+#See 
 logging = tf.logging
 
 flags.DEFINE_string(
@@ -81,7 +84,9 @@ flags.DEFINE_string("save_path", None,
                     "Model output directory.")
 flags.DEFINE_bool("use_fp16", False,
                   "Train using 16-bit floats instead of 32bit floats")
-flags.DEFINE_integer("num_gpus", 1,
+#RM: ("num_gpus", 1, ...) changed to ("num_gpus", 0, ...)
+#It wil have to be changed if using GPUs
+flags.DEFINE_integer("num_gpus", 0,
                      "If larger than 1, Grappler AutoParallel optimizer "
                      "will create multiple training replicas with each GPU "
                      "running one replica.")
@@ -444,14 +449,15 @@ def get_config():
 def main(_):
   if not FLAGS.data_path:
     raise ValueError("Must set --data_path to PTB data directory")
-  gpus = [
-      x.name for x in device_lib.list_local_devices() if x.device_type == "GPU"
-  ]
-  if FLAGS.num_gpus > len(gpus):
-    raise ValueError(
-        "Your machine has only %d gpus "
-        "which is less than the requested --num_gpus=%d."
-        % (len(gpus), FLAGS.num_gpus))
+#RM: Uncomment if using GPUs
+#  gpus = [
+#      x.name for x in device_lib.list_local_devices() if x.device_type == "GPU"
+#  ]
+#  if FLAGS.num_gpus > len(gpus):
+#    raise ValueError(
+#        "Your machine has only %d gpus "
+#        "which is less than the requested --num_gpus=%d."
+#        % (len(gpus), FLAGS.num_gpus))
 
   raw_data = reader.ptb_raw_data(FLAGS.data_path)
   train_data, valid_data, test_data, _ = raw_data
@@ -469,14 +475,14 @@ def main(_):
       train_input = PTBInput(config=config, data=train_data, name="TrainInput")
       with tf.variable_scope("Model", reuse=None, initializer=initializer):
         m = PTBModel(is_training=True, config=config, input_=train_input)
-      tf.summary.scalar("Training Loss", m.cost)
-      tf.summary.scalar("Learning Rate", m.lr)
+      tf.summary.scalar("Training_Loss", m.cost)
+      tf.summary.scalar("Learning_Rate", m.lr)
 
     with tf.name_scope("Valid"):
       valid_input = PTBInput(config=config, data=valid_data, name="ValidInput")
       with tf.variable_scope("Model", reuse=True, initializer=initializer):
         mvalid = PTBModel(is_training=False, config=config, input_=valid_input)
-      tf.summary.scalar("Validation Loss", mvalid.cost)
+      tf.summary.scalar("Validation_Loss", mvalid.cost)
 
     with tf.name_scope("Test"):
       test_input = PTBInput(
@@ -508,7 +514,7 @@ def main(_):
         lr_decay = config.lr_decay ** max(i + 1 - config.max_epoch, 0.0)
         m.assign_lr(session, config.learning_rate * lr_decay)
 
-        print("Epoch: %d Learning rate: %.3f" % (i + 1, session.run(m.lr)))
+        print("Epoch: %d Learning_rate: %.3f" % (i + 1, session.run(m.lr)))
         train_perplexity = run_epoch(session, m, eval_op=m.train_op,
                                      verbose=True)
         print("Epoch: %d Train Perplexity: %.3f" % (i + 1, train_perplexity))
