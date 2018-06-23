@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-
+#===============================================================================
+# Block Comment
+#===============================================================================
 """Example / benchmark for building a PTB LSTM model.
 
 Trains the model described in:
@@ -544,4 +546,4 @@ def main(_):
 
 
 if __name__ == "__main__":
-  tf.app.run()
+  tf.app.run() #See /home/rm/anaconda3/envs/tensorflow/lib/python3.6/site-packages/tensorflow/python/platform
