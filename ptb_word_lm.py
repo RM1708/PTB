@@ -574,4 +574,4 @@ def main(_):
 
 
 if __name__ == "__main__":
-  tf.app.run()
+  tf.app.run() #See /home/rm/anaconda3/envs/tensorflow/lib/python3.6/site-packages/tensorflow/python/platform
