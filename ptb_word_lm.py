@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-
+#===============================================================================
+# Block Comment
+#===============================================================================
 """Example / benchmark for building a PTB LSTM model.
 
 Trains the model described in:
@@ -32,15 +34,29 @@ The hyperparameters used in the model:
 - init_scale - the initial scale of the weights
 - learning_rate - the initial value of the learning rate
 - max_grad_norm - the maximum permissible norm of the gradient
+
 - num_layers - the number of LSTM layers
 - num_steps - the number of unrolled steps of LSTM
 - hidden_size - the number of LSTM units
+    RM: 
+    So what's the difference between hidden_size and num_steps?
+    num_layers is the number of ***layers***
+    num_steps is the number of ***LSTM units in a layer***?
+    hidden_size is the num_steps * (num_layers - \
+                                    1 input layer - \
+                                    1 output layer)?
+    
+    
 - max_epoch - the number of epochs trained with the initial learning rate
 - max_max_epoch - the total number of epochs for training
 - keep_prob - the probability of keeping weights in the dropout layer
-- lr_decay - the decay of the learning rate for each epoch after "max_epoch"
+- lr_decay - the decay of the learning rate for each epoch 
+            ***after "max_epoch"***
 - batch_size - the batch size
-- rnn_mode - the low level implementation of lstm cell: one of CUDNN,
+            RM
+            In number of words?
+            
+- rnn_mode - the low level ***implementation*** of lstm cell: one of CUDNN,
              BASIC, or BLOCK, representing cudnn_lstm, basic_lstm, and
              lstm_block_cell classes.
 
@@ -63,6 +79,12 @@ import time
 
 import numpy as np
 import tensorflow as tf
+
+#from tensorflow import contrib 
+from tensorflow.contrib import seq2seq
+from tensorflow.contrib import cudnn_rnn
+from tensorflow.contrib import rnn
+#import tensorflow.VERSION as tf_version
 
 import reader
 import util
@@ -142,11 +164,13 @@ class PTBModel(object):
         "softmax_w", [size, vocab_size], dtype=data_type())
     softmax_b = tf.get_variable("softmax_b", [vocab_size], dtype=data_type())
     logits = tf.nn.xw_plus_b(output, softmax_w, softmax_b)
-     # Reshape logits to be a 3-D tensor for sequence loss
+    # Reshape logits to be a 3-D tensor for sequence loss
     logits = tf.reshape(logits, [self.batch_size, self.num_steps, vocab_size])
 
     # Use the contrib sequence loss and average over the batches
-    loss = tf.contrib.seq2seq.sequence_loss(
+#    loss = tf.contrib.seq2seq.sequence_loss(
+#    loss = contrib.seq2seq.sequence_loss(
+    loss = seq2seq.sequence_loss(
         logits,
         input_.targets,
         tf.ones([self.batch_size, self.num_steps], dtype=data_type()),
@@ -182,11 +206,12 @@ class PTBModel(object):
   def _build_rnn_graph_cudnn(self, inputs, config, is_training):
     """Build the inference graph using CUDNN cell."""
     inputs = tf.transpose(inputs, [1, 0, 2])
-    self._cell = tf.contrib.cudnn_rnn.CudnnLSTM(
-        num_layers=config.num_layers,
-        num_units=config.hidden_size,
-        input_size=config.hidden_size,
-        dropout=1 - config.keep_prob if is_training else 0)
+#    self._cell = tf.contrib.cudnn_rnn.CudnnLSTM(
+    self._cell = cudnn_rnn.CudnnLSTM(
+            num_layers=config.num_layers,
+            num_units=config.hidden_size,
+            input_size=config.hidden_size,
+            dropout=1 - config.keep_prob if is_training else 0)
     params_size_t = self._cell.params_size()
     self._rnn_params = tf.get_variable(
         "lstm_params",
@@ -197,19 +222,23 @@ class PTBModel(object):
                  tf.float32)
     h = tf.zeros([config.num_layers, self.batch_size, config.hidden_size],
                  tf.float32)
-    self._initial_state = (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
+#    self._initial_state = (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
+    self._initial_state = (rnn.LSTMStateTuple(h=h, c=c),)
     outputs, h, c = self._cell(inputs, h, c, self._rnn_params, is_training)
     outputs = tf.transpose(outputs, [1, 0, 2])
     outputs = tf.reshape(outputs, [-1, config.hidden_size])
-    return outputs, (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
+#    return outputs, (tf.contrib.rnn.LSTMStateTuple(h=h, c=c),)
+    return outputs, (rnn.LSTMStateTuple(h=h, c=c),)
 
   def _get_lstm_cell(self, config, is_training):
     if config.rnn_mode == BASIC:
-      return tf.contrib.rnn.BasicLSTMCell(
+#      return tf.contrib.rnn.BasicLSTMCell(
+      return rnn.BasicLSTMCell(
           config.hidden_size, forget_bias=0.0, state_is_tuple=True,
           reuse=not is_training)
     if config.rnn_mode == BLOCK:
-      return tf.contrib.rnn.LSTMBlockCell(
+#      return tf.contrib.rnn.LSTMBlockCell(
+      return rnn.LSTMBlockCell(
           config.hidden_size, forget_bias=0.0)
     raise ValueError("rnn_mode %s not supported" % config.rnn_mode)
 
@@ -221,11 +250,13 @@ class PTBModel(object):
     def make_cell():
       cell = self._get_lstm_cell(config, is_training)
       if is_training and config.keep_prob < 1:
-        cell = tf.contrib.rnn.DropoutWrapper(
+#        cell = tf.contrib.rnn.DropoutWrapper(
+        cell = rnn.DropoutWrapper(
             cell, output_keep_prob=config.keep_prob)
       return cell
 
-    cell = tf.contrib.rnn.MultiRNNCell(
+#    cell = tf.contrib.rnn.MultiRNNCell(
+    cell = rnn.MultiRNNCell(
         [make_cell() for _ in range(config.num_layers)], state_is_tuple=True)
 
     self._initial_state = cell.zero_state(config.batch_size, data_type())
@@ -275,7 +306,14 @@ class PTBModel(object):
       self._lr_update = tf.get_collection_ref("lr_update")[0]
       rnn_params = tf.get_collection_ref("rnn_params")
       if self._cell and rnn_params:
-        params_saveable = tf.contrib.cudnn_rnn.RNNParamsSaveable(
+        assert(False, \
+               "This branch spells trouble as the fn RNNParamsSaveable()" + \
+               " is not available from cudnn_rnn ")
+#        params_saveable = tf.contrib.cudnn_rnn.RNNParamsSaveable(
+#
+# /home/rm/anaconda3/envs/tensorflow/lib/python3.6/site-packages/tensorflow/contrib/cudnn_rnn/python/layers/cudnn_rnn.py
+# does have the function RNNParamsSaveable()
+        params_saveable = cudnn_rnn.RNNParamsSaveable(
             self._cell,
             self._cell.params_to_canonical,
             self._cell.canonical_to_params,
@@ -441,7 +479,8 @@ def get_config():
     raise ValueError("Invalid model: %s", FLAGS.model)
   if FLAGS.rnn_mode:
     config.rnn_mode = FLAGS.rnn_mode
-  if FLAGS.num_gpus != 1 or tf.__version__ < "1.3.0" :
+#  if FLAGS.num_gpus != 1 or tf.__version__ < "1.3.0" :
+  if FLAGS.num_gpus != 1 or tf.VERSION < "1.3.0" :
     config.rnn_mode = BASIC
   return config
 
@@ -463,7 +502,11 @@ def main(_):
   train_data, valid_data, test_data, _ = raw_data
 
   config = get_config()
-  eval_config = get_config()
+  eval_config = get_config() # Why another call? Why not "re-use" config?
+                              #Because config and eval_config are two separate function objects.
+                              #eval_config will have some of its attrributes changed. These must not affect
+                              #config
+  assert(not(config is eval_config))
   eval_config.batch_size = 1
   eval_config.num_steps = 1
 
@@ -495,7 +538,8 @@ def main(_):
     for name, model in models.items():
       model.export_ops(name)
     metagraph = tf.train.export_meta_graph()
-    if tf.__version__ < "1.1.0" and FLAGS.num_gpus > 1:
+#    if tf.__version__ < "1.1.0" and FLAGS.num_gpus > 1:
+    if tf.VERSION < "1.1.0" and FLAGS.num_gpus > 1:
       raise ValueError("num_gpus > 1 is not supported for TensorFlow versions "
                        "below 1.1.0")
     soft_placement = False
