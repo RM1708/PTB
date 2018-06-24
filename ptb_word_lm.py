@@ -151,8 +151,14 @@ class PTBModel(object):
     vocab_size = config.vocab_size
 
     with tf.device("/cpu:0"):
+      # See https://www.tensorflow.org/tutorials/recurrent#inputs
+      # embedding_matrix is a tensor of shape [vocabulary_size, embedding size]
+      #word_embeddings = tf.nn.embedding_lookup(embedding_matrix, word_ids)
       embedding = tf.get_variable(
           "embedding", [vocab_size, size], dtype=data_type())
+      # The following does not seem to tally with
+      # https://www.tensorflow.org/api_docs/python/tf/nn/embedding_lookup
+      # TODO: Check in debugger
       inputs = tf.nn.embedding_lookup(embedding, input_.input_data)
 
     if is_training and config.keep_prob < 1:
@@ -574,4 +580,4 @@ def main(_):
 
 
 if __name__ == "__main__":
-  tf.app.run() #See /home/rm/anaconda3/envs/tensorflow/lib/python3.6/site-packages/tensorflow/python/platform
+  tf.app.run()
