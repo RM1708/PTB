@@ -13,7 +13,7 @@
 # limitations under the License.
 # ==============================================================================
 #===============================================================================
-# Block Comment
+# Block Comment This is linked to Eclipse project PTB_Src-NoCopy
 #===============================================================================
 """Example / benchmark for building a PTB LSTM model.
 
